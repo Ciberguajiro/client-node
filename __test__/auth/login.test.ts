@@ -3,7 +3,9 @@ import { Login, Me } from '../../src/interfaces';
 
 import { login } from '../../src';
 
-describe('login', () => {
+const d = process.env.EMAIL ? describe : describe.skip;
+
+d('login', () => {
   it('should return a LoginResponse when the request is successful', async () => {
     const loginData: Login = {
       email: <string>process.env.EMAIL,

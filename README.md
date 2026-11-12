@@ -1,11 +1,177 @@
-# 📚 QvaPay SDK: client-node
+# QvaPay SDK: client-node
 
-![alt: "QvaPay Banner"](https://pbs.twimg.com/media/Eu2VPzEXEAEyVxs.jpg)
 Este proyecto consiste en un SDK de TypeScript para Node.js que permite a los desarrolladores interactuar con la API de QvaPay. El SDK proporciona un conjunto de funciones asíncronas que retornan una promesa con la data o el error de la consulta, permitiendo a los desarrolladores crear aplicaciones que se conecten a la API de QvaPay. Se incluye una documentación detallada y ejemplos de código.
+
+---
+
+## SDK v2 (recomendado)
+
+La versión 2 del SDK introduce una API basada en clases (`QvaPaySDK`) que organiza la funcionalidad en 19 módulos temáticos, mejorando la descubribilidad, el tipado y la mantenibilidad.
+
+### Instalación
+
+```shell
+npm install qvapay-sdk
+# o
+yarn add qvapay-sdk
+```
+
+### Configuración
+
+```ts
+import { QvaPaySDK } from "qvapay-sdk";
+
+const sdk = new QvaPaySDK({
+  appId: "TU_APP_ID",
+  appSecret: "TU_APP_SECRET",
+  token: "TOKEN_OPCIONAL",        // Bearer token preexistente (opcional)
+  baseUrl: "https://api.qvapay.com", // URL base de la API (opcional, por defecto https://api.qvapay.com)
+  timeout: 10000                 // Timeout en ms (opcional, por defecto 10000)
+});
+```
+
+**Parámetros del constructor:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `appId` | `string` | Sí | ID de la aplicación |
+| `appSecret` | `string` | Sí | Secreto de la aplicación |
+| `token` | `string` | No | Token Bearer preexistente |
+| `baseUrl` | `string` | No | URL base de la API (default: `https://api.qvapay.com`) |
+| `timeout` | `number` | No | Timeout de petición en ms (default: `10000`) |
+| `adapter` | `AxiosRequestConfig["adapter"]` | No | Adaptador de axios; usa `"fetch"` en Cloudflare Workers |
+
+El constructor lanza `QvaPayValidationError` si `appId` o `appSecret` están vacíos o son `undefined`.
+
+### Adaptador para Cloudflare Workers / Edge
+
+En lugar de usar `axios.request`, usa el adaptador nativo de **fetch** en las runtimes de Cloudflare Workers (sin XHR ni `node:http`). Ejemplo:
+
+```ts
+import { QvaPaySDK } from "qvapay-sdk";
+
+const sdk = new QvaPaySDK({
+  token: "TOKEN_OPCIONAL",        // Bearer token preexistente (opcional)
+  baseUrl: "https://api.qvapay.com", // URL base de la API (opcional, por defecto https://api.qvapay.com)
+  timeout: 10000,                  // Timeout en ms (opcional, por defecto 10000)
+  adapter: "fetch",               // adaptador para Cloudflare Workers / edge runtimes
+});
+```
+
+El campo `adapter` es opcional.
+
+### Manejo de errores
+
+El SDK define una jerarquía de errores tipados:
+
+| Error | Cuándo se lanza | Propiedades adicionales |
+|-------|-----------------|------------------------|
+| `QvaPayError` | Clase base para todos los errores | — |
+| `QvaPayValidationError` | Argumentos inválidos antes de la petición | `field?: string` |
+| `QvaPayAuthError` | HTTP 401 / 403 (credenciales inválidas) | `statusCode: number` |
+| `QvaPayApiError` | Respuesta HTTP no exitosa (≠ 2xx, salvo auth) | `statusCode: number`, `statusMessage?: string`, `code?: string` |
+| `QvaPayNetworkError` | Error de red (sin respuesta, timeout) | — |
+
+Ejemplo de captura:
+
+```ts
+try {
+  const user = await sdk.user.getProfile();
+} catch (err) {
+  if (err instanceof QvaPayAuthError) {
+    console.error("Error de autenticación:", err.statusCode);
+  } else if (err instanceof QvaPayApiError) {
+    console.error("Error de API:", err.statusCode, err.message, err.code);
+  } else if (err instanceof QvaPayNetworkError) {
+    console.error("Error de red:", err.message);
+  } else if (err instanceof QvaPayValidationError) {
+    console.error("Validación:", err.field, err.message);
+  }
+}
+```
+
+### Módulos disponibles
+
+El SDK expone 19 módulos a través de la instancia `QvaPaySDK`:
+
+| Módulo | Propiedad en SDK | Descripción | Métodos públicos principales |
+|--------|------------------|-------------|------------------------------|
+| **Auth** | `sdk.auth` | Autenticación y sesiones | `login`, `register`, `logout`, `logoutAll`, `registerConfirmation`, `checkAuth`, `requestPin`, `getSessions`, `deleteSession`, `create2fa`, `check2fa`, `reset2fa`, `confirmReset2fa`, `requestResetPassword`, `confirmResetPassword` |
+| **App** | `sdk.app` | Gestión de aplicación (merchant) | `getInfo`, `getBalance`, `createInvoice`, `modifyInvoice`, `charge`, `authorizePayments`, `listTransactions`, `getTransaction` |
+| **Apps** | `sdk.apps` | Administración de apps del usuario | `list`, `create`, `get`, `update`, `delete`, `getLogs`, `getPayButtons`, `createPayButton`, `updatePayButton`, `getMiniAppConversation`, `sendMiniAppMessage` |
+| **Coins** | `sdk.coins` | Criptomonedas y tasas | `list`, `listCategorized`, `listV2`, `detail`, `priceHistory` |
+| **Invoices** | `sdk.invoices` | Facturas de pago (v1, deprecado) | `create` |
+| **Me** | `sdk.me` | Perfil del usuario autenticado (deprecado) | `getProfile`, `transfer` |
+| **P2P** | `sdk.p2p` | Exchange peer-to-peer | `list`, `get`, `create`, `edit`, `apply`, `cancel`, `paid`, `received`, `rate`, `getChat`, `sendChatMessage`, `getAverages`, `getCompletedPairsAverage`, `getFeatured`, `getPromo`, `createPromo`, `pause`, `updateRate`, `getAttachments`, `uploadAttachment`, `getAttachment`, `getFeedSubscription`, `getFeedDeliveries`, `getStreamUrlAndHeaders`, `getChatStreamUrlAndHeaders` |
+| **PaymentLinks** | `sdk.paymentLinks` | Enlaces de pago | `list`, `create`, `delete` |
+| **Stocks** | `sdk.stocks` | Acciones / stocks | `list`, `get` / `detail`, `buy`, `sell`, `portfolio` |
+| **Store** | `sdk.store` | Tienda (eSIM, vouchers, recargas, PIX) | `list`, `getMyPurchases`, `getMyPurchase`, `getEsimCatalog`, `purchaseEsim`, `getPixEligibility`, `createPixCheckout`, `getPixCheckout`, `cancelPixCheckout`, `getPhonePackages`, `buyPhonePackage`, `getVoucherFeatured`, `getVoucherCountries`, `getVoucherBrands`, `getVoucherOffers`, `purchaseVoucher`, `getLatamTopupCountries`, `getLatamTopupOperators`, `getLatamTopupOffers`, `getLatamTopup`, `purchaseLatamTopup` |
+| **Transactions** | `sdk.transactions` | Transacciones del usuario | `list`, `listUser`, `get`, `getDetail`, `transfer`, `pay`, `downloadPdf`, `getComments`, `createComment`, `deleteComment`, `getStatus` |
+| **User** | `sdk.user` | Perfil y configuración de usuario | `getProfile`, `getExtendedProfile`, `updateProfile`, `uploadAvatar`, `searchUsers`, `getKycStatus`, `requestKyc`, `getPaymentMethods`, `createPaymentMethod`, `updatePaymentMethod`, `deletePaymentMethod`, `getReferralLinks`, `createReferralLink`, `getLightningAddress`, `updateLightningAddress`, `decodeLightning`, `getEmailChangeStatus`, `updateEmail`, `verifyTelegram`, `requestTelegramLink`, `unlinkTelegram`, `getCip`, `verifyCpf`, `verifySsn`, `getDepositEligibility`, `getCompanyApplications`, `applyCompany`, `getPaymentAuths`, `revokePaymentAuth`, `getNotifications`, `updateNotifications`, `getContacts`, `createContact`, `deleteContact`, `toggleFavorite`, `getGoldStatus`, `buyGold`, `getReferrals`, `topUp` |
+| **Withdraw** | `sdk.withdraw` | Retiros | `list`, `get`, `bankLookup`, `getCashZones`, `create` |
+| **Support** | `sdk.support` | Tickets de soporte | `list`, `get`, `create`, `reply` |
+| **Push** | `sdk.push` | Notificaciones push | `registerToken`, `revokeToken`, `getInbox`, `reportEvent` |
+| **Saving** | `sdk.saving` | Cuenta de ahorro | `getAccount`, `getTransactions`, `deposit`, `withdraw`, `setRoundup` |
+| **Energy** | `sdk.energy` | Energía TRON | `getPrices`, `getQuote`, `rent`, `listOrders`, `getOrder` |
+| **Market** | `sdk.market` | Marketplace vendedores | `listShops`, `getShop`, `createShop`, `updateShop`, `deleteShop`, `getShopCategories`, `createShopCategory`, `reorderShopCategories`, `updateShopCategory`, `deleteShopCategory`, `listProducts`, `createProduct`, `updateProduct`, `deleteProduct`, `createProductsBulk`, `getProductVariants`, `syncProductVariants`, `listStores`, `getStoreBySlug`, `getCatalog`, `getPublicProduct`, `listOrders`, `createOrder`, `updateOrder`, `refundOrder`, `rateOrder`, `uploadImage` |
+| **MiniApps** | `sdk.miniapps` | Catálogo de mini-apps | `list`, `get`, `getGrants`, `revokeGrant` |
+
+### Ejemplo completo
+
+```ts
+import { QvaPaySDK, QvaPayAuthError, QvaPayValidationError } from "qvapay-sdk";
+
+const sdk = new QvaPaySDK({
+  appId: process.env.APP_ID!,
+  appSecret: process.env.APP_SECRET!,
+});
+
+// Login con email y password
+try {
+  const result = await sdk.auth.login({
+    email: "usuario@ejemplo.com",
+    password: "secreto123",
+  });
+
+  if (result.twoFactorRequired) {
+    console.log("2FA requerido:", result.info);
+    // Pedir código 2FA y reintentar con twoFactorCode
+  } else {
+    console.log("Login OK, token:", result.token);
+    console.log("Usuario:", result.user.username);
+  }
+} catch (err) {
+  if (err instanceof QvaPayValidationError) {
+    console.error("Campo inválido:", err.field);
+  } else if (err instanceof QvaPayAuthError) {
+    console.error("Credenciales incorrectas");
+  }
+}
+
+// Usar módulos que requieren autenticación (inyectan Authorization: Bearer <token>)
+const profile = await sdk.user.getProfile();
+console.log("Balance:", profile.balance);
+
+// Crear factura (usa app-id / app-secret)
+const invoice = await sdk.app.createInvoice({
+  amount: 10.50,
+  description: "Pago de prueba",
+  remote_id: "ref-12345",
+});
+console.log("URL de pago:", invoice.url);
+```
+
+---
+
+## API legacy (deprecada)
+
+La documentación a continuación corresponde a la API funcional legacy (exportada desde `src/api/*`). Se mantiene por compatibilidad pero **no se recomienda para nuevos proyectos**. Migre a **SDK v2** (sección anterior).
+
+---
 
 ## 🚀 Estructura del Proyecto
 
-Dentro del proyecto verás las estructura de carpetas y archivos:
+Dentro del proyecto verás la estructura de carpetas y archivos:
 
 ```
 /
@@ -14,16 +180,23 @@ Dentro del proyecto verás las estructura de carpetas y archivos:
 │   │   └── ...
 │   ├── helpers/
 │   │   └── ...
-│   └── interfaces/
-│       └── ...
-├── test/
-│   ├── ...
+│   ├── interfaces/
+│   │   └── ...
+│   ├── services/       # SDK v2 - servicios basados en clases
+│   │   └── ...
+│   ├── lib.ts          # SDK v2 - clase principal QvaPaySDK
+│   ├── utils.ts        # Utilidades (axios, mappers, interceptores)
+│   ├── errors.ts       # SDK v2 - clases de error
+│   └── types.ts        # SDK v2 - tipos e interfaces
+├── __test__/
+│   ├── sdk/            # Tests offline del SDK v2
+│   └── auth/           # Tests legacy (requieren credenciales reales)
 └── package.json
 ```
 
 ---
 
-## 📖 Documentación:
+## 📖 Documentación legacy:
 
 1. Instala el SDK.
 
@@ -33,7 +206,7 @@ o
 yarn add qvapay-sdk
 ```
 
-2. Configure en su archivo .env las siguentes variables de entorno:
+2. Configure en su archivo .env las siguientes variables de entorno:
 
 ```shell
 APP_ID=
@@ -60,11 +233,11 @@ const appAuth = {
 };
 ```
 
-> Ahora que has instalado el SDK y configurado sus opciones primarias, estás listo para comenzar a usar todas las funcionalidades que te ofrece. ¡Aprovecha al máximo todas las posibilidades que este SDK te ofrece!
+> Ahora que ha instalado el SDK y configurado sus opciones primarias, está listo para comenzar a usar todas las funcionalidades que le ofrece. ¡Aproveche al máximo todas las posibilidades que este SDK le ofrece!
 
 ---
 
-## 🔐 Auth:
+## 🔐 Auth (legacy):
 
 > La sección Auth contiene las funciones login, register y logout. Estas funciones son esenciales para garantizar que solo los usuarios autorizados puedan acceder al contenido y realizar acciones en la aplicación. Todas las funciones son asíncronas y retornan una promesa con la data o el error de la request.
 
@@ -107,10 +280,11 @@ const { accessToken } = await login(userLogin);
 const res = await logout(accessToken);
 ```
 
-> 🔔 En los ejemplos que siguen, se usa el accessToken que retorna la función login(). Sin embargo, tenga presente que usted puede guardar este token de la forma que prefiera y usarlo posteriormente para realizar operaciones en su aplicación.
+> En los ejemplos que siguen, se usa el accessToken que retorna la función login(). Sin embargo, tenga presente que usted puede guardar este token de la forma que prefiera y usarlo posteriormente para realizar operaciones en su aplicación.
 
+---
 
-## 😎 User:
+## 😎 User (legacy):
 
 > La sección User ofrece una variedad de funcionalidades para administrar la información de los usuarios. La función getUser permite obtener información acerca de un usuario específico. La función updateUser permite actualizar la información del usuario. La función deposit permite realizar depósitos en la cuenta del usuario. Por último, la función withdraw permite realizar retiros desde la cuenta del usuario. Estas funcionalidades permiten a los usuarios administrar sus cuentas de forma segura y eficiente. Todas las funciones retornan una promesa con la data o el error de la request.
 
@@ -186,7 +360,7 @@ const res = await withdraw(accessToken, newWithdraw);
 
 ---
 
-## 💱 Transactions:
+## 💱 Transactions (legacy):
 
 > La sección Transactions ofrece una variedad de funciones para administrar las transacciones y retiros realizados por los usuarios. Estas funciones incluyen getOneTransaction, que permite obtener información sobre una transacción específica; getOneWithdraw, que permite obtener información sobre un retiro específico; getTransactionsFromUserAuth, que permite obtener todas las transacciones realizadas por el usuario autenticado; getWithdrawsFromUserAuth, que permite obtener todos los retiros realizados por el usuario autenticado; payPendingTransaction, que permite pagar una transacción pendiente; y transferBetweenUser, que permite transferir fondos entre dos usuarios. Estas funciones permiten a los usuarios administrar sus transacciones y retiros de forma segura y eficiente.
 
@@ -281,7 +455,7 @@ const res = await payPendingTransaction(accessToken, pay);
 
 ---
 
-## 🤑 Merchants
+## 🤑 Merchants (legacy)
 
 > La sección Merchants le permite a los usuarios realizar operaciones financieras como consultar el saldo de una aplicación, obtener información sobre una aplicación, crear facturas, obtener una transacción de una aplicación y obtener transacciones de una aplicación. Estas funcionalidades le permiten al usuario administrar sus finanzas con facilidad y seguridad.
 
@@ -345,7 +519,7 @@ const res = await getOneTransactionFromApp(appAuth, id);
 
 ---
 
-## 🔗 Payment Links
+## 🔗 Payment Links (legacy)
 
 > La sección Payment Links le permite a los usuarios crear enlaces de pago personalizados para recibir pagos de sus clientes. Estos enlaces pueden ser compartidos a través de correo electrónico, redes sociales o cualquier otra plataforma para que los clientes realicen el pago directamente desde su dispositivo. Además, la sección Payment Links también le permite al usuario ver todos los enlaces de pago creados y consultar el estado de cada uno.
 
@@ -379,7 +553,7 @@ const res = await createPaymentLink(accessToken, info);
 
 ---
 
-## 🤖 Services
+## 🤖 Services (legacy)
 
 > Nuestra sección de servicios cuenta con dos funcionalidades principales: getAllServices y getOneService, que te permiten obtener información detallada sobre cada uno de nuestros servicios.
 
@@ -409,7 +583,7 @@ const res = await getOneService(accessToken, id);
 
 ---
 
-## 💆‍♂️ P2P
+## 💆‍♂️ P2P (legacy)
 
 > La sección P2P ofrece una variedad de funciones para facilitar el intercambio de monedas digitales entre usuarios. Estas funciones incluyen getEnabledCurrencies, que permite a los usuarios ver qué monedas están habilitadas para el intercambio; getOffers, que permite a los usuarios ver todas las ofertas disponibles; getOneOffer, que permite a los usuarios ver una oferta específica; y getPairsAverage, que calcula el promedio de precios para un par de monedas específico. Estas herramientas permiten a los usuarios realizar transacciones rápidas y seguras con otros usuarios en la plataforma.
 
@@ -463,15 +637,16 @@ const id = '949780ed-7303-4a34-b8c3-2d55d802c75d';
 
 const res = await getOneOffer(accessToken, id);
 ```
-___
 
-## 🏦 Rates
+---
 
-> La sección reates cuenta con las funciones currentCoins, currentRates. Haciendo uso de estas puede mantener a sus usuarios al tanto de las tarifas actualizadas.
+## 🏦 Rates (legacy)
+
+> La sección Rates cuenta con las funciones currentCoins, currentRates. Haciendo uso de estas puede mantener a sus usuarios al tanto de las tarifas actualizadas.
 
 ### currentRates
 
-> Esta función devuelve una promesa de una matriz de tasas actuales. Obtiene los datos desde la  API de qvapayAPI. Si la solicitud se realiza correctamente, devolverá los datos recibidos. Si hay algún error en la solicitud, devolverá los datos recibidos en la respuesta del error.
+> Esta función devuelve una promesa de una matriz de tasas actuales. Obtiene los datos desde la API de qvapayAPI. Si la solicitud se realiza correctamente, devolverá los datos recibidos. Si hay algún error en la solicitud, devolverá los datos recibidos en la respuesta del error.
 
 ```js
 import { currentRates } from 'qvapay-sdk';
@@ -489,4 +664,6 @@ import { currentCoins } from 'qvapay-sdk';
 const res = await currentCoins();
 ```
 
-> 💡 Este proyecto está en desarrollo y busca ofrecer una solución de código abierto para interactuar con la API de QvaPay. Estamos abiertos a cualquier sugerencia o feedback que nos ayude a mejorar el proyecto. Estamos comprometidos con la satisfacción de nuestros usuarios, por lo que cualquier contribución es bienvenida. Si tienes alguna idea para mejorar el proyecto, no dudes en compartirla con nosotros. ¡Estamos ansiosos por escuchar tus ideas!
+---
+
+> Este proyecto está en desarrollo y busca ofrecer una solución de código abierto para interactuar con la API de QvaPay. Estamos abiertos a cualquier sugerencia o feedback que nos ayude a mejorar el proyecto. Estamos comprometidos con la satisfacción de nuestros usuarios, por lo que cualquier contribución es bienvenida. Si tiene alguna idea para mejorar el proyecto, no dude en compartirla con nosotros. ¡Estamos ansiosos por escuchar sus ideas!

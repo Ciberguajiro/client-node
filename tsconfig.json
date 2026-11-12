@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     /* Language and Environment */
-    "target": "es2015",
+    "target": "es2020",
+    "lib": ["ES2022", "DOM"],
 
     /* Modules */
     "module": "commonjs" /* Specify what module code is generated. */,
@@ -22,5 +23,6 @@
 
     /* Completeness */
     "skipLibCheck": true /* Skip type checking all .d.ts files. */
-  }
+  },
+  "include": ["src/**/*"]
 }
