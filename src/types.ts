@@ -5,15 +5,17 @@
  */
 export interface QvaPayConfig {
   /** ID de la aplicación. */
-  appId: string;
+  appId?: string;
   /** Secreto de la aplicación. */
-  appSecret: string;
+  appSecret?: string;
   /** Token Bearer preestablecido (opcional). */
   token?: string;
   /** URL base de la API. @default "https://api.qvapay.com" */
   baseUrl?: string;
   /** Tiempo de espera de la petición en ms. @default 10000 */
   timeout?: number;
+  /** Adaptador de axios. Usa 'fetch' en Cloudflare Workers / edge runtimes. */
+  adapter?: import("axios").AxiosRequestConfig["adapter"];
 }
 
 // ─── Modelos de Dominio ─────────────────────────────────────────────────────

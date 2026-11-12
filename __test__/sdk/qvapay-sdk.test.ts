@@ -88,6 +88,10 @@ describe("QvaPaySDK - constructor", () => {
     expect(() => new QvaPaySDK({ appId: "id", appSecret: undefined as any })).toThrow(QvaPayValidationError);
   });
 
+  test("NO lanza si solo hay token (sin appId/appSecret)", () => {
+    expect(() => new QvaPaySDK({ token: "bearer-token-123" })).not.toThrow();
+  });
+
   test("instancia correctamente con appId y appSecret válidos", () => {
     const sdk = new QvaPaySDK({ appId: "test-id", appSecret: "test-secret" });
     expect(sdk).toBeInstanceOf(QvaPaySDK);
@@ -102,6 +106,10 @@ describe("QvaPaySDK - constructor", () => {
   test("acepta baseUrl y timeout personalizados", () => {
     const sdk = new QvaPaySDK({ appId: "id", appSecret: "secret", baseUrl: "https://custom.api", timeout: 5000 });
     expect(sdk).toBeInstanceOf(QvaPaySDK);
+  });
+
+  test("lanza QvaPayValidationError si falta appId cuando no hay token", () => {
+    expect(() => new QvaPaySDK({})).toThrow(QvaPayValidationError);
   });
 });
 
@@ -261,6 +269,68 @@ describe("QvaPaySDK - appHttp inyecta headers app-id / app-secret", () => {
     await promise;
 
     expect(true).toBe(true);
+  });
+}); 
+
+describe("QvaPaySDK - adapter personalizado (Cloudflare Workers / fetch)", () => {
+  let sdk: QvaPaySDK;
+  let adapterFn: any;
+
+  beforeEach(() => {
+    adapterFn = jest.fn(async (config: AxiosRequestConfig) => ({
+      data: {
+        uuid: "u1",
+        username: "john",
+        name: "John",
+        lastname: "",
+        email: "j@j.com",
+        photo: null,
+        balance: 0,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config,
+      request: {},
+    }));
+    sdk = new QvaPaySDK({
+      token: "bearer-token-123",
+      adapter: adapterFn,
+    });
+    const meSvc = (sdk as any).me;
+    meSvc.http.defaults.adapter = adapterFn;
+  });
+
+  test("usa adapter personalizado y me.getProfile lo invoca con Authorization Bearer", async () => {
+    const profile = await sdk.me.getProfile();
+    expect(adapterFn).toHaveBeenCalledTimes(1);
+    const captured = adapterFn.mock.calls[0][0];
+    const headers = captured.headers ?? {};
+    const auth = headers.Authorization ?? headers.authorization ?? (headers.get ? headers.get("Authorization") : undefined);
+    expect(auth).toBe("Bearer bearer-token-123");
+    expect(profile).toEqual({ uuid: "u1", username: "john", name: "John", email: "j@j.com", photo: null, balance: 0, createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" });
+  });
+
+  test("sin appId/appSecret pero con token: no envía app-id / app-secret en headers", async () => {
+    const adapterFn2 = jest.fn(async (config: AxiosRequestConfig) => ({
+      data: { uuid: "u1", username: "john", name: "John", lastname: "", email: "j@j.com", photo: null, balance: 0, created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z" },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config,
+      request: {},
+    }));
+    const sdk2 = new QvaPaySDK({ token: "bearer-token-123" });
+    const meSvc2 = (sdk2 as any).me;
+    meSvc2.http.defaults.adapter = adapterFn2;
+    const profile2 = await sdk2.me.getProfile();
+    expect(adapterFn2).toHaveBeenCalledTimes(1);
+    const cfg2 = adapterFn2.mock.calls[0][0];
+    const h2 = cfg2.headers ?? {};
+    expect(h2["app-id"]).toBeUndefined();
+    expect(h2["app-secret"]).toBeUndefined();
   });
 });
 

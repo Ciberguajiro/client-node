@@ -46,11 +46,12 @@ export function createHttpClient(config: QvaPayConfig): AxiosInstance {
   const instance = axios.create({
     baseURL: config.baseUrl ?? DEFAULT_BASE_URL,
     timeout: config.timeout ?? DEFAULT_TIMEOUT,
+    adapter: config.adapter,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "app-id": config.appId,
-      "app-secret": config.appSecret,
+      ...(config.appId ? { "app-id": config.appId } : {}),
+      ...(config.appSecret ? { "app-secret": config.appSecret } : {}),
     },
   });
 
@@ -66,11 +67,12 @@ export function createHttpClient(config: QvaPayConfig): AxiosInstance {
  * Instancia de Axios sin inyección de autenticación — usada para endpoints públicos.
  */
 export function createPlainHttpClient(
-  config: Pick<QvaPayConfig, "baseUrl" | "timeout">,
+  config: Pick<QvaPayConfig, "baseUrl" | "timeout" | "adapter">,
 ): AxiosInstance {
   const instance = axios.create({
     baseURL: config.baseUrl ?? DEFAULT_BASE_URL,
     timeout: config.timeout ?? DEFAULT_TIMEOUT,
+    adapter: config.adapter,
     headers: { "Content-Type": "application/json", Accept: "application/json" },
   });
 
@@ -82,12 +84,13 @@ export function createPlainHttpClient(
  * Instancia de Axios que inyecta un token Bearer dinámicamente en cada petición.
  */
 export function createUserHttpClient(
-  config: Pick<QvaPayConfig, "baseUrl" | "timeout">,
+  config: Pick<QvaPayConfig, "baseUrl" | "timeout" | "adapter">,
   getToken: () => string | null,
 ): AxiosInstance {
   const instance = axios.create({
     baseURL: config.baseUrl ?? DEFAULT_BASE_URL,
     timeout: config.timeout ?? DEFAULT_TIMEOUT,
+    adapter: config.adapter,
     headers: { "Content-Type": "application/json", Accept: "application/json" },
   });
 

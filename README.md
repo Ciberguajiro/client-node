@@ -39,8 +39,26 @@ const sdk = new QvaPaySDK({
 | `token` | `string` | No | Token Bearer preexistente |
 | `baseUrl` | `string` | No | URL base de la API (default: `https://api.qvapay.com`) |
 | `timeout` | `number` | No | Timeout de petición en ms (default: `10000`) |
+| `adapter` | `AxiosRequestConfig["adapter"]` | No | Adaptador de axios; usa `"fetch"` en Cloudflare Workers |
 
 El constructor lanza `QvaPayValidationError` si `appId` o `appSecret` están vacíos o son `undefined`.
+
+### Adaptador para Cloudflare Workers / Edge
+
+En lugar de usar `axios.request`, usa el adaptador nativo de **fetch** en las runtimes de Cloudflare Workers (sin XHR ni `node:http`). Ejemplo:
+
+```ts
+import { QvaPaySDK } from "qvapay-sdk";
+
+const sdk = new QvaPaySDK({
+  token: "TOKEN_OPCIONAL",        // Bearer token preexistente (opcional)
+  baseUrl: "https://api.qvapay.com", // URL base de la API (opcional, por defecto https://api.qvapay.com)
+  timeout: 10000,                  // Timeout en ms (opcional, por defecto 10000)
+  adapter: "fetch",               // adaptador para Cloudflare Workers / edge runtimes
+});
+```
+
+El campo `adapter` es opcional.
 
 ### Manejo de errores
 

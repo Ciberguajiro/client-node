@@ -49,11 +49,13 @@ export class QvaPaySDK {
   readonly miniapps: MiniAppsService;
 
   constructor(config: QvaPayConfig) {
-    if (!config.appId) {
-      throw new QvaPayValidationError("El appId es requerido", "appId");
-    }
-    if (!config.appSecret) {
-      throw new QvaPayValidationError("El appSecret es requerido", "appSecret");
+    if (!config.token) {
+      if (!config.appId || !config.appSecret) {
+        throw new QvaPayValidationError(
+          "Se requiere appId y appSecret, o un token",
+          !config.appId ? "appId" : "appSecret",
+        );
+      }
     }
 
     this._token = config.token ?? null;
